@@ -1,27 +1,27 @@
-jsonquery
+protobufquery
 ====
-[![Build Status](https://travis-ci.org/antchfx/jsonquery.svg?branch=master)](https://travis-ci.org/antchfx/jsonquery)
-[![Coverage Status](https://coveralls.io/repos/github/antchfx/jsonquery/badge.svg?branch=master)](https://coveralls.io/github/antchfx/jsonquery?branch=master)
-[![GoDoc](https://godoc.org/github.com/antchfx/jsonquery?status.svg)](https://godoc.org/github.com/antchfx/jsonquery)
-[![Go Report Card](https://goreportcard.com/badge/github.com/antchfx/jsonquery)](https://goreportcard.com/report/github.com/antchfx/jsonquery)
+[![Build Status](https://travis-ci.org/antchfx/protobufquery.svg?branch=master)](https://travis-ci.org/antchfx/protobufquery)
+[![Coverage Status](https://coveralls.io/repos/github/antchfx/protobufquery/badge.svg?branch=master)](https://coveralls.io/github/antchfx/protobufquery?branch=master)
+[![GoDoc](https://godoc.org/github.com/antchfx/protobufquery?status.svg)](https://godoc.org/github.com/antchfx/protobufquery)
+[![Go Report Card](https://goreportcard.com/badge/github.com/antchfx/protobufquery)](https://goreportcard.com/report/github.com/antchfx/protobufquery)
 
 Overview
 ===
 
-jsonquery is an XPath query package for JSON document, lets you extract data from JSON documents through an XPath expression. Built-in XPath expression cache avoid re-compile XPath expression each query.
+protobufquery is an XPath query package for JSON document, lets you extract data from JSON documents through an XPath expression. Built-in XPath expression cache avoid re-compile XPath expression each query.
 
 Getting Started
 ===
 
 ### Install Package
 ```
-go get github.com/antchfx/jsonquery
+go get github.com/antchfx/protobufquery
 ```
 
 #### Load JSON document from URL.
 
 ```go
-doc, err := jsonquery.LoadURL("http://www.example.com/feed?json")
+doc, err := protobufquery.LoadURL("http://www.example.com/feed?json")
 ```
 
 #### Load JSON document from string.
@@ -32,47 +32,47 @@ s :=`{
     "age":31, 
     "city":"New York" 
     }`
-doc, err := jsonquery.Parse(strings.NewReader(s))
+doc, err := protobufquery.Parse(strings.NewReader(s))
 ```
 
 #### Load JSON document from io.Reader.
 
 ```go
 f, err := os.Open("./books.json")
-doc, err := jsonquery.Parse(f)
+doc, err := protobufquery.Parse(f)
 ```
 
 #### Find authors of all books in the store.
 ```go
-list := jsonquery.Find(doc, "store/book/*/author")
+list := protobufquery.Find(doc, "store/book/*/author")
 // or equal to
-list := jsonquery.Find(doc, "//author")
+list := protobufquery.Find(doc, "//author")
 // or by QueryAll()
-nodes, err := jsonquery.QueryAll(doc, "//a")
+nodes, err := protobufquery.QueryAll(doc, "//a")
 ```
 
 #### Find the third book.
 
 ```go
-book := jsonquery.Find(doc, "//book/*[3]")
+book := protobufquery.Find(doc, "//book/*[3]")
 ```
 
 #### Find the last book.
 
 ```go
-book := jsonquery.Find(doc, "//book/*[last()]")
+book := protobufquery.Find(doc, "//book/*[last()]")
 ```
 
 #### Find all books that have an isbn number.
 
 ```go
-list := jsonquery.Find(doc, "//book/*[isbn]")
+list := protobufquery.Find(doc, "//book/*[isbn]")
 ```
 
 #### Find all books priced less than 10.
 
 ```go
-list := jsonquery.Find(doc, "//book/*[price<10]")
+list := protobufquery.Find(doc, "//book/*[price<10]")
 ```
 
 Examples
@@ -99,18 +99,18 @@ func main() {
 		  }
 		]
 	}`
-	doc, err := jsonquery.Parse(strings.NewReader(s))
+	doc, err := protobufquery.Parse(strings.NewReader(s))
 	if err != nil {
 		panic(err)
 	}
-	name := jsonquery.FindOne(doc, "name")
+	name := protobufquery.FindOne(doc, "name")
 	fmt.Printf("name: %s\n", name.InnerText())
 	var a []string
-	for _, n := range jsonquery.Find(doc, "phoneNumbers/*/number") {
+	for _, n := range protobufquery.Find(doc, "phoneNumbers/*/number") {
 		a = append(a, n.InnerText())
 	}
 	fmt.Printf("phone number: %s\n", strings.Join(a, ","))
-	if n := jsonquery.FindOne(doc, "address/streetAddress"); n != nil {
+	if n := protobufquery.FindOne(doc, "address/streetAddress"); n != nil {
 		fmt.Printf("address: %s\n", n.InnerText())
 	}
 }
@@ -132,7 +132,7 @@ write your XPath expression.
 ]
 }
 ```
-The above JSON document will be convert to similar to XML document by the *JSONQuery*, like below:
+The above JSON document will be convert to similar to XML document by the *protobufquery*, like below:
 
 ```XML
 <name>John</name>
@@ -172,4 +172,4 @@ List of XPath query packages
 |--------------------------|----------------|
 |[htmlquery](https://github.com/antchfx/htmlquery) | XPath query package for the HTML document|
 |[xmlquery](https://github.com/antchfx/xmlquery) | XPath query package for the XML document|
-|[jsonquery](https://github.com/antchfx/jsonquery) | XPath query package for the JSON document|
+|[protobufquery](https://github.com/antchfx/protobufquery) | XPath query package for the JSON document|

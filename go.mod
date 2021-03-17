@@ -1,4 +1,4 @@
-module github.com/antchfx/jsonquery
+module github.com/antchfx/protobufquery
 
 go 1.14
 

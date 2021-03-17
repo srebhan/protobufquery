@@ -1,4 +1,4 @@
-package jsonquery
+package protobufquery
 
 import (
 	"fmt"
