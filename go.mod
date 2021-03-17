@@ -1,4 +1,4 @@
-module github.com/antchfx/protobufquery
+module github.com/doclambda/protobufquery
 
 go 1.14
 

@@ -1,41 +1,28 @@
 protobufquery
-====
-[![Build Status](https://travis-ci.org/antchfx/protobufquery.svg?branch=master)](https://travis-ci.org/antchfx/protobufquery)
+<!-- ==== -->
+<!-- [![Build Status](https://travis-ci.org/antchfx/protobufquery.svg?branch=master)](https://travis-ci.org/antchfx/protobufquery)
 [![Coverage Status](https://coveralls.io/repos/github/antchfx/protobufquery/badge.svg?branch=master)](https://coveralls.io/github/antchfx/protobufquery?branch=master)
 [![GoDoc](https://godoc.org/github.com/antchfx/protobufquery?status.svg)](https://godoc.org/github.com/antchfx/protobufquery)
-[![Go Report Card](https://goreportcard.com/badge/github.com/antchfx/protobufquery)](https://goreportcard.com/report/github.com/antchfx/protobufquery)
+[![Go Report Card](https://goreportcard.com/badge/github.com/antchfx/protobufquery)](https://goreportcard.com/report/github.com/antchfx/protobufquery) -->
 
 Overview
 ===
 
-protobufquery is an XPath query package for JSON document, lets you extract data from JSON documents through an XPath expression. Built-in XPath expression cache avoid re-compile XPath expression each query.
+Protobufquery is an XPath query package for ProtocolBuffer documents. It lets you extract data from parsed
+ProtocolBuffer message through an XPath expression. Built-in XPath expression cache avoid re-compilation of
+XPath expression for each query.
 
 Getting Started
 ===
 
 ### Install Package
 ```
-go get github.com/antchfx/protobufquery
+go get github.com/doclambda/protobufquery
 ```
 
-#### Load JSON document from URL.
+#### Load ProtocolBuffer message from io.Reader.
 
-```go
-doc, err := protobufquery.LoadURL("http://www.example.com/feed?json")
-```
-
-#### Load JSON document from string.
-
-```go
-s :=`{
-    "name":"John",
-    "age":31, 
-    "city":"New York" 
-    }`
-doc, err := protobufquery.Parse(strings.NewReader(s))
-```
-
-#### Load JSON document from io.Reader.
+**TODO**
 
 ```go
 f, err := os.Open("./books.json")
@@ -77,6 +64,8 @@ list := protobufquery.Find(doc, "//book/*[price<10]")
 
 Examples
 ===
+
+**TODO**
 
 ```go
 func main() {
@@ -132,7 +121,7 @@ write your XPath expression.
 ]
 }
 ```
-The above JSON document will be convert to similar to XML document by the *protobufquery*, like below:
+The above ProtocolBuffer above will be convert by *protobufquery* to a structure similar to the XML document below:
 
 ```XML
 <name>John</name>
@@ -164,7 +153,7 @@ The above JSON document will be convert to similar to XML document by the *proto
 </cars>
 ```
 
-Notes: `element` is empty element that have no any name.
+Note: `element` is an anonymous element without name.
 
 List of XPath query packages
 ===
@@ -172,4 +161,5 @@ List of XPath query packages
 |--------------------------|----------------|
 |[htmlquery](https://github.com/antchfx/htmlquery) | XPath query package for the HTML document|
 |[xmlquery](https://github.com/antchfx/xmlquery) | XPath query package for the XML document|
-|[protobufquery](https://github.com/antchfx/protobufquery) | XPath query package for the JSON document|
+|[jsonquery](https://github.com/antchfx/jsonquery) | XPath query package for the JSON document|
+|[protobufquery](https://github.com/doclambda/protobufquery) | XPath query package for ProtocolBuffer messages|
