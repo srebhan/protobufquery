@@ -24,8 +24,8 @@ const (
 type Node struct {
 	Parent, PrevSibling, NextSibling, FirstChild, LastChild *Node
 
-	Type  NodeType
-	Name  string
+	Type NodeType
+	Name string
 	Data *protoreflect.Value
 
 	level int
@@ -128,37 +128,36 @@ func Parse(msg protoreflect.Message) (*Node, error) {
 	return doc, nil
 }
 
-
 func visit(parent *Node, msg protoreflect.Message, level int) {
-  msg.Range(func(f protoreflect.FieldDescriptor, v protoreflect.Value) bool {
-    traverse(parent, f, v, level)
-    return true
-  })
+	msg.Range(func(f protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		traverse(parent, f, v, level)
+		return true
+	})
 }
 
 func traverse(parent *Node, field protoreflect.FieldDescriptor, value protoreflect.Value, level int) {
 	node := &Node{Type: ElementNode, Name: string(field.Name()), level: level}
 	nodeChildren := 0
-  if field.IsList() {
+	if field.IsList() {
 		l := value.List()
 
-	  for i := 0; i < l.Len(); i++ {
-	    subNode := handleValue(field.Kind(), l.Get(i), level+1)
+		for i := 0; i < l.Len(); i++ {
+			subNode := handleValue(field.Kind(), l.Get(i), level+1)
 			if subNode.Type == ElementNode {
 				// Add element nodes directly to the parent
 				subNode.Name = node.Name
 				addNode(parent, subNode)
 			} else {
 				// Add basic nodes to the local collection node
-				elementNode := &Node{Type: ElementNode, level: level+1}
+				elementNode := &Node{Type: ElementNode, level: level + 1}
 				subNode.level += 2
 				addNode(elementNode, subNode)
 				addNode(node, elementNode)
 				nodeChildren++
 			}
 		}
-  } else {
-	  subNode := handleValue(field.Kind(), value, level+1)
+	} else {
+		subNode := handleValue(field.Kind(), value, level+1)
 		if subNode.Type == ElementNode {
 			// Add element nodes directly to the parent
 			subNode.Name = node.Name
@@ -177,15 +176,15 @@ func traverse(parent *Node, field protoreflect.FieldDescriptor, value protorefle
 }
 
 func handleValue(kind protoreflect.Kind, value protoreflect.Value, level int) *Node {
-  var node *Node
+	var node *Node
 
-  switch kind {
-  case protoreflect.MessageKind:
+	switch kind {
+	case protoreflect.MessageKind:
 		node = &Node{Type: ElementNode, level: level}
-    visit(node, value.Message(), level+1)
-  default:
+		visit(node, value.Message(), level+1)
+	default:
 		node = &Node{Type: TextNode, Data: &value, level: level}
-  }
+	}
 	return node
 }
 
