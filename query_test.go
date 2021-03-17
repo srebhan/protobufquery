@@ -1,11 +1,20 @@
 package protobufquery
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/antchfx/xpath"
+
+	"github.com/stretchr/testify/require"
 )
+
+type keyValue struct {
+	key string
+	value string
+	missing bool
+}
+
+type keyValueList []keyValue
 
 func BenchmarkSelectorCache(b *testing.B) {
 	DisableSelectorCache = false
@@ -22,112 +31,71 @@ func BenchmarkDisableSelectorCache(b *testing.B) {
 }
 
 func TestNavigator(t *testing.T) {
-	s := `{
-		"name":"John",
-		"age":30,
-		"cars": [
-			{ "name":"Ford", "models":[ "Fiesta", "Focus", "Mustang" ] },
-			{ "name":"BMW", "models":[ "320", "X3", "X5" ] },
-			{ "name":"Fiat", "models":[ "500", "Panda" ] }
-		]
-	 }`
-	doc, _ := parseString(s)
-	/**
-	<age>30</age>
-	<cars>
-		<element>
-			<models>...</models>
-			<name>Ford</name>
-		</element>
-		<element>
-			<models>...</models>
-			<name>BMW</name>
-		</element>
-		<element>
-			<models>...</models>
-			<name>Fiat</name>
-		</element>
-	</cars>
-	<name>John</name>
-	*/
+	msg := addressbookSample.ProtoReflect()
+	doc, err := Parse(msg)
+	require.NoError(t, err)
+
 	nav := CreateXPathNavigator(doc)
 	nav.MoveToRoot()
 	if nav.NodeType() != xpath.RootNode {
 		t.Fatal("node type is not RootNode")
 	}
-	// Move to first child(age).
-	if e, g := true, nav.MoveToChild(); e != g {
-		t.Fatalf("expected %v but %v", e, g)
+
+	expectedPeople := []keyValueList {
+		[]keyValue {
+			{key: "name",  value: "John Doe"},
+			{key: "id",    value: "101"},
+			{key: "email", value: "john@example.com"},
+		},
+		[]keyValue {
+			{key: "name",  value: "Jane Doe"},
+			{key: "id",    value: "102"},
+			{key: "email", value: "", missing: true},
+		},
 	}
-	if e, g := "age", nav.Current().Data; e != g {
-		t.Fatalf("expected %v but %v", e, g)
-	}
-	if e, g := "30", nav.Value(); e != g {
-		t.Fatalf("expected %v but %v", e, g)
-	}
-	// Move to next sibling node(cars).
-	if e, g := true, nav.MoveToNext(); e != g {
-		t.Fatalf("expected %v but %v", e, g)
-	}
-	if e, g := "cars", nav.Current().Data; e != g {
-		t.Fatalf("expected %v but %v", e, g)
-	}
-	m := make(map[string][]string)
-	// Move to cars child node.
-	cur := nav.Copy()
-	for ok := nav.MoveToChild(); ok; ok = nav.MoveToNext() {
-		// Move to <element> node.
-		// <element><models>...</models><name>Ford</name></element>
-		cur1 := nav.Copy()
-		var name string
-		var models []string
-		// name || models
-		for ok := nav.MoveToChild(); ok; ok = nav.MoveToNext() {
-			cur2 := nav.Copy()
-			n := nav.Current()
-			if n.Data == "name" {
-				name = n.InnerText()
+	require.True(t, nav.MoveToChild())
+	for _, keyvalues := range expectedPeople {
+		require.Equal(t, "people", nav.Current().Name)
+		require.True(t, nav.MoveToChild())
+		for i, v := range keyvalues {
+			if !v.missing {
+				if i > 0 {
+					require.True(t, nav.MoveToNext())
+				}
+				require.Equal(t, v.key, nav.Current().Name)
+				require.Equal(t, v.value, nav.Value())
 			} else {
-				for ok := nav.MoveToChild(); ok; ok = nav.MoveToNext() {
-					cur3 := nav.Copy()
-					models = append(models, nav.Value())
-					nav.MoveTo(cur3)
+				if i > 0 {
+					if ! nav.MoveToNext() {
+						// There is no other node so we passed the test
+						continue
+					}
+				}
+				require.NotEqual(t, v.key, nav.Current().Name)
+				if i > 0 {
+					require.True(t, nav.MoveToPrevious())
 				}
 			}
-			nav.MoveTo(cur2)
 		}
-		nav.MoveTo(cur1)
-		m[name] = models
+		require.True(t, nav.MoveToParent())
+		require.True(t, nav.MoveToNext())
 	}
-	expected := []struct {
-		name, value string
-	}{
-		{"Ford", "Fiesta,Focus,Mustang"},
-		{"BMW", "320,X3,X5"},
-		{"Fiat", "500,Panda"},
-	}
-	for _, v := range expected {
-		if e, g := v.value, strings.Join(m[v.name], ","); e != g {
-			t.Fatalf("expected %v=%v,but %v=%v", v.name, e, v.name, g)
-		}
-	}
-	nav.MoveTo(cur)
-	// move to name.
-	if e, g := true, nav.MoveToNext(); e != g {
-		t.Fatalf("expected %v but %v", e, g)
-	}
-	// move to cars
-	nav.MoveToPrevious()
-	if e, g := "cars", nav.Current().Data; e != g {
-		t.Fatalf("expected %v but %v", e, g)
-	}
-	// move to age.
-	nav.MoveToFirst()
-	if e, g := "age", nav.Current().Data; e != g {
-		t.Fatalf("expected %v but %v", e, g)
-	}
-	nav.MoveToParent()
-	if g := nav.Current().Type; g != DocumentNode {
-		t.Fatalf("node type is not DocumentNode")
-	}
+
+	require.True(t, nav.MoveToParent())
+	require.Equal(t, nav.Current().Type, DocumentNode, "expected 'DocumentNode'")
+}
+
+func TestQuery(t *testing.T) {
+	msg := addressbookSample.ProtoReflect()
+	doc, err := Parse(msg)
+	require.NoError(t, err)
+
+	nodes, err := QueryAll(doc, "//people[contains(name, 'Jack')]/id")
+	require.NoError(t, err)
+
+	require.Len(t, nodes, 2)
+	require.Equal(t, "id", nodes[0].Name)
+	require.EqualValues(t, 201, nodes[0].Value())
+	require.Equal(t, "id", nodes[1].Name)
+	require.EqualValues(t, 301, nodes[1].Value())
 }

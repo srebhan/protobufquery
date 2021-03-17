@@ -1,177 +1,62 @@
 package protobufquery
 
 import (
-	"sort"
-	"strings"
 	"testing"
+
+	"github.com/doclambda/protobufquery/testcases/addressbook"
+	"github.com/stretchr/testify/require"
 )
 
-func parseString(s string) (*Node, error) {
-	return Parse(strings.NewReader(s))
+var addressbookSample = &addressbook.AddressBook{
+	People: []*addressbook.Person {
+		{
+			Name:  "John Doe",
+			Id:    101,
+			Email: "john@example.com",
+		},
+		{
+			Name: "Jane Doe",
+			Id:   102,
+		},
+		{
+			Name:  "Jack Doe",
+			Id:    201,
+			Email: "jack@example.com",
+			Phones: []*addressbook.Person_PhoneNumber{
+				{Number: "555-555-5555", Type: addressbook.Person_WORK},
+			},
+		},
+		{
+			Name:  "Jack Buck",
+			Id:    301,
+			Email: "buck@example.com",
+			Phones: []*addressbook.Person_PhoneNumber{
+				{Number: "555-555-0000", Type: addressbook.Person_HOME},
+				{Number: "555-555-0001", Type: addressbook.Person_MOBILE},
+				{Number: "555-555-0002", Type: addressbook.Person_WORK},
+			},
+		},
+		{
+			Name:  "Janet Doe",
+			Id:    1001,
+			Email: "janet@example.com",
+			Phones: []*addressbook.Person_PhoneNumber{
+				{Number: "555-777-0000"},
+				{Number: "555-777-0001", Type: addressbook.Person_HOME},
+			},
+		},
+	},
+	Tags: []string {"home", "private", "friends"},
 }
 
-func TestParseJsonNumberArray(t *testing.T) {
-	s := `[1,2,3,4,5,6]`
-	doc, err := parseString(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// output like below:
-	// <element>1</element>
-	// <element>2</element>
-	// ...
-	// <element>6</element>
-	if e, g := 6, len(doc.ChildNodes()); e != g {
-		t.Fatalf("excepted %v but got %v", e, g)
-	}
-	var v []string
-	for _, n := range doc.ChildNodes() {
-		v = append(v, n.InnerText())
-	}
-	if got, expected := strings.Join(v, ","), "1,2,3,4,5,6"; got != expected {
-		t.Fatalf("got %v but expected %v", got, expected)
-	}
-}
 
-func TestParseJsonObject(t *testing.T) {
-	s := `{
-		"name":"John",
-		"age":31,
-		"city":"New York"
-	}`
-	doc, err := parseString(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// output like below:
-	// <name>John</name>
-	// <age>31</age>
-	// <city>New York</city>
-	m := make(map[string]string)
-	for _, n := range doc.ChildNodes() {
-		m[n.Data] = n.InnerText()
-	}
-	expected := []struct {
-		name, value string
-	}{
-		{"name", "John"},
-		{"age", "31"},
-		{"city", "New York"},
-	}
-	for _, v := range expected {
-		if e, g := v.value, m[v.name]; e != g {
-			t.Fatalf("expected %v=%v,but %v=%v", v.name, e, v.name, g)
-		}
-	}
-}
+func TestParseAddressBookXML(t *testing.T) {
+	msg := addressbookSample.ProtoReflect()
+	doc, err := Parse(msg)
+	require.NoError(t, err)
+	require.Len(t, doc.ChildNodes(), 6)
 
-func TestParseJsonObjectArray(t *testing.T) {
-	s := `[
-		{ "name":"Ford", "models":[ "Fiesta", "Focus", "Mustang" ] },
-		{ "name":"BMW", "models":[ "320", "X3", "X5" ] },
-        { "name":"Fiat", "models":[ "500", "Panda" ] }
-	]`
-	doc, err := parseString(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	/**
-	<element>
-		<name>Ford</name>
-		<models>
-			<element>Fiesta</element>
-			<element>Focus</element>
-			<element>Mustang</element>
-		</models>
-	</element>
-	<element>
-		<name>BMW</name>
-		<models>
-			<element>320</element>
-			<element>X3</element>
-			<element>X5</element>
-		</models>
-	</element>
-	....
-	*/
-	if e, g := 3, len(doc.ChildNodes()); e != g {
-		t.Fatalf("expected %v, but %v", e, g)
-	}
-	m := make(map[string][]string)
-	for _, n := range doc.ChildNodes() {
-		// Go to the next of the element list.
-		var name string
-		var models []string
-		for _, e := range n.ChildNodes() {
-			if e.Data == "name" {
-				// a name node.
-				name = e.InnerText()
-			} else {
-				// a models node.
-				for _, k := range e.ChildNodes() {
-					models = append(models, k.InnerText())
-				}
-			}
-		}
-		// Sort models list.
-		sort.Strings(models)
-		m[name] = models
-
-	}
-	expected := []struct {
-		name, value string
-	}{
-		{"Ford", "Fiesta,Focus,Mustang"},
-		{"BMW", "320,X3,X5"},
-		{"Fiat", "500,Panda"},
-	}
-	for _, v := range expected {
-		if e, g := v.value, strings.Join(m[v.name], ","); e != g {
-			t.Fatalf("expected %v=%v,but %v=%v", v.name, e, v.name, g)
-		}
-	}
-}
-
-func TestParseJson(t *testing.T) {
-	s := `{
-		"name":"John",
-		"age":30,
-		"cars": [
-			{ "name":"Ford", "models":[ "Fiesta", "Focus", "Mustang" ] },
-			{ "name":"BMW", "models":[ "320", "X3", "X5" ] },
-			{ "name":"Fiat", "models":[ "500", "Panda" ] }
-		]
-	 }`
-	doc, err := parseString(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	n := doc.SelectElement("name")
-	if n == nil {
-		t.Fatal("n is nil")
-	}
-	if n.NextSibling != nil {
-		t.Fatal("next sibling shoud be nil")
-	}
-	if e, g := "John", n.InnerText(); e != g {
-		t.Fatalf("expected %v but %v", e, g)
-	}
-	cars := doc.SelectElement("cars")
-	if e, g := 3, len(cars.ChildNodes()); e != g {
-		t.Fatalf("expected %v but %v", e, g)
-	}
-}
-
-func TestLargeFloat(t *testing.T) {
-	s := `{
-		"large_number": 365823929453
-	 }`
-	doc, err := parseString(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	n := doc.SelectElement("large_number")
-	if n.InnerText() != "365823929453" {
-		t.Fatalf("expected %v but %v", "365823929453", n.InnerText())
-	}
+	xml := doc.OutputXML()
+	expected := `<?xml version="1.0"?><people><name>John Doe</name><id>101</id><email>john@example.com</email></people><people><name>Jane Doe</name><id>102</id></people><people><name>Jack Doe</name><id>201</id><email>jack@example.com</email><phones><number>555-555-5555</number><type>2</type></phones></people><people><name>Jack Buck</name><id>301</id><email>buck@example.com</email><phones><number>555-555-0000</number><type>1</type></phones><phones><number>555-555-0001</number></phones><phones><number>555-555-0002</number><type>2</type></phones></people><people><name>Janet Doe</name><id>1001</id><email>janet@example.com</email><phones><number>555-777-0000</number></phones><phones><number>555-777-0001</number><type>1</type></phones></people><tags><element>home</element><element>private</element><element>friends</element></tags>`
+	require.Equal(t, expected, xml)
 }

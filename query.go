@@ -88,13 +88,12 @@ func (a *NodeNavigator) NodeType() xpath.NodeType {
 	case ElementNode:
 		return xpath.ElementNode
 	default:
-		panic(fmt.Sprintf("unknown node type %v", a.cur.Type))
+		panic(fmt.Errorf("unknown node type %v", a.cur.Type))
 	}
 }
 
 func (a *NodeNavigator) LocalName() string {
-	return a.cur.Data
-
+	return a.cur.Name
 }
 
 func (a *NodeNavigator) Prefix() string {
@@ -106,7 +105,7 @@ func (a *NodeNavigator) Value() string {
 	case ElementNode:
 		return a.cur.InnerText()
 	case TextNode:
-		return a.cur.Data
+		return a.cur.Data.String()
 	}
 	return ""
 }

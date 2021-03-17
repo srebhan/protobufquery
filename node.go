@@ -2,12 +2,8 @@ package protobufquery
 
 import (
 	"bytes"
-	"encoding/json"
-	"io"
-	"io/ioutil"
-	"net/http"
-	"sort"
-	"strconv"
+
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // A NodeType is the type of a Node.
@@ -28,8 +24,9 @@ const (
 type Node struct {
 	Parent, PrevSibling, NextSibling, FirstChild, LastChild *Node
 
-	Type NodeType
-	Data string
+	Type  NodeType
+	Name  string
+	Data *protoreflect.Value
 
 	level int
 }
@@ -48,7 +45,7 @@ func (n *Node) InnerText() string {
 	var output func(*bytes.Buffer, *Node)
 	output = func(buf *bytes.Buffer, n *Node) {
 		if n.Type == TextNode {
-			buf.WriteString(n.Data)
+			buf.WriteString(n.Data.String())
 			return
 		}
 		for child := n.FirstChild; child != nil; child = child.NextSibling {
@@ -61,26 +58,20 @@ func (n *Node) InnerText() string {
 }
 
 func outputXML(buf *bytes.Buffer, n *Node) {
-	switch n.Type {
-	case ElementNode:
-		if n.Data == "" {
-			buf.WriteString("<element>")
-		} else {
-			buf.WriteString("<" + n.Data + ">")
-		}
-	case TextNode:
-		buf.WriteString(n.Data)
+	if n.Type == TextNode {
+		buf.WriteString(n.Data.String())
 		return
 	}
 
+	name := "element"
+	if n.Name != "" {
+		name = n.Name
+	}
+	buf.WriteString("<" + name + ">")
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
 		outputXML(buf, child)
 	}
-	if n.Data == "" {
-		buf.WriteString("</element>")
-	} else {
-		buf.WriteString("</" + n.Data + ">")
-	}
+	buf.WriteString("</" + name + ">")
 }
 
 // OutputXML prints the XML string.
@@ -97,94 +88,125 @@ func (n *Node) OutputXML() string {
 // specified name.
 func (n *Node) SelectElement(name string) *Node {
 	for nn := n.FirstChild; nn != nil; nn = nn.NextSibling {
-		if nn.Data == name {
+		if nn.Name == name {
 			return nn
 		}
 	}
 	return nil
 }
 
-// LoadURL loads the JSON document from the specified URL.
-func LoadURL(url string) (*Node, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
+// Value return the value of the node itself or its 'TextElement' children.
+// If `nil`, the value is either really `nil` or there is no matching child.
+func (n *Node) Value() interface{} {
+	if n.Type == TextNode {
+		if n.Data == nil {
+			return nil
+		}
+		return n.Data.Interface()
 	}
-	defer resp.Body.Close()
-	return Parse(resp.Body)
+
+	result := make([]interface{}, 0)
+	for child := n.FirstChild; child != nil; child = child.NextSibling {
+		if child.Type != TextNode || child.Data == nil {
+			continue
+		}
+		result = append(result, child.Data.Interface())
+	}
+
+	if len(result) == 0 {
+		return nil
+	} else if len(result) == 1 {
+		return result[0]
+	}
+	return result
 }
 
-func parseValue(x interface{}, top *Node, level int) {
-	addNode := func(n *Node) {
-		if n.level == top.level {
-			top.NextSibling = n
-			n.PrevSibling = top
-			n.Parent = top.Parent
-			if top.Parent != nil {
-				top.Parent.LastChild = n
-			}
-		} else if n.level > top.level {
-			n.Parent = top
-			if top.FirstChild == nil {
-				top.FirstChild = n
-				top.LastChild = n
-			} else {
-				t := top.LastChild
-				t.NextSibling = n
-				n.PrevSibling = t
-				top.LastChild = n
-			}
-		}
-	}
-	switch v := x.(type) {
-	case []interface{}:
-		for _, vv := range v {
-			n := &Node{Type: ElementNode, level: level}
-			addNode(n)
-			parseValue(vv, n, level+1)
-		}
-	case map[string]interface{}:
-		// The Go’s map iteration order is random.
-		// (https://blog.golang.org/go-maps-in-action#Iteration-order)
-		var keys []string
-		for key := range v {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			n := &Node{Data: key, Type: ElementNode, level: level}
-			addNode(n)
-			parseValue(v[key], n, level+1)
-		}
-	case string:
-		n := &Node{Data: v, Type: TextNode, level: level}
-		addNode(n)
-	case float64:
-		s := strconv.FormatFloat(v, 'f', -1, 64)
-		n := &Node{Data: s, Type: TextNode, level: level}
-		addNode(n)
-	case bool:
-		s := strconv.FormatBool(v)
-		n := &Node{Data: s, Type: TextNode, level: level}
-		addNode(n)
-	}
-}
-
-func parse(b []byte) (*Node, error) {
-	var v interface{}
-	if err := json.Unmarshal(b, &v); err != nil {
-		return nil, err
-	}
+// Parse ProtocolBuffer message.
+func Parse(msg protoreflect.Message) (*Node, error) {
 	doc := &Node{Type: DocumentNode}
-	parseValue(v, doc, 1)
+	visit(doc, msg, 1)
 	return doc, nil
 }
 
-// Parse JSON document.
-func Parse(r io.Reader) (*Node, error) {
-	b, err := ioutil.ReadAll(r)
-	if err != nil {
-		return nil, err
+
+func visit(parent *Node, msg protoreflect.Message, level int) {
+  msg.Range(func(f protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+    traverse(parent, f, v, level)
+    return true
+  })
+}
+
+func traverse(parent *Node, field protoreflect.FieldDescriptor, value protoreflect.Value, level int) {
+	node := &Node{Type: ElementNode, Name: string(field.Name()), level: level}
+	nodeChildren := 0
+  if field.IsList() {
+		l := value.List()
+
+	  for i := 0; i < l.Len(); i++ {
+	    subNode := handleValue(field.Kind(), l.Get(i), level+1)
+			if subNode.Type == ElementNode {
+				// Add element nodes directly to the parent
+				subNode.Name = node.Name
+				addNode(parent, subNode)
+			} else {
+				// Add basic nodes to the local collection node
+				elementNode := &Node{Type: ElementNode, level: level+1}
+				subNode.level += 2
+				addNode(elementNode, subNode)
+				addNode(node, elementNode)
+				nodeChildren++
+			}
+		}
+  } else {
+	  subNode := handleValue(field.Kind(), value, level+1)
+		if subNode.Type == ElementNode {
+			// Add element nodes directly to the parent
+			subNode.Name = node.Name
+			addNode(parent, subNode)
+		} else {
+			// Add basic nodes to the local collection node
+			addNode(node, subNode)
+			nodeChildren++
+		}
 	}
-	return parse(b)
+
+	// Only add the node if it has children
+	if nodeChildren > 0 {
+		addNode(parent, node)
+	}
+}
+
+func handleValue(kind protoreflect.Kind, value protoreflect.Value, level int) *Node {
+  var node *Node
+
+  switch kind {
+  case protoreflect.MessageKind:
+		node = &Node{Type: ElementNode, level: level}
+    visit(node, value.Message(), level+1)
+  default:
+		node = &Node{Type: TextNode, Data: &value, level: level}
+  }
+	return node
+}
+
+func addNode(top, n *Node) {
+	if n.level == top.level {
+		top.NextSibling = n
+		n.PrevSibling = top
+		n.Parent = top.Parent
+		if top.Parent != nil {
+			top.Parent.LastChild = n
+		}
+	} else if n.level > top.level {
+		n.Parent = top
+		if top.FirstChild == nil {
+			top.FirstChild = n
+			top.LastChild = n
+		} else {
+			t := top.LastChild
+			t.NextSibling = n
+			n.PrevSibling = t
+			top.LastChild = n
+		}
+	}
 }
