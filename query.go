@@ -101,13 +101,7 @@ func (a *NodeNavigator) Prefix() string {
 }
 
 func (a *NodeNavigator) GetValue() interface{} {
-	switch a.cur.Type {
-	case ElementNode:
-		return a.cur.InnerText()
-	case TextNode:
-		return a.cur.Value()
-	}
-	return nil
+	return a.cur.Value()
 }
 
 func (a *NodeNavigator) Value() string {
