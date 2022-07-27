@@ -100,6 +100,16 @@ func (a *NodeNavigator) Prefix() string {
 	return ""
 }
 
+func (a *NodeNavigator) GetValue() interface{} {
+	switch a.cur.Type {
+	case ElementNode:
+		return a.cur.InnerText()
+	case TextNode:
+		return a.cur.Value()
+	}
+	return nil
+}
+
 func (a *NodeNavigator) Value() string {
 	switch a.cur.Type {
 	case ElementNode:
