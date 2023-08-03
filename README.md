@@ -1,4 +1,4 @@
-protobufquery
+# XPath query implementation for protocol-buffers
 <!-- ==== -->
 <!-- [![Build Status](https://travis-ci.org/antchfx/protobufquery.svg?branch=master)](https://travis-ci.org/antchfx/protobufquery)
 [![Coverage Status](https://coveralls.io/repos/github/antchfx/protobufquery/badge.svg?branch=master)](https://coveralls.io/github/antchfx/protobufquery?branch=master)
