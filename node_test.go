@@ -1,6 +1,7 @@
 package protobufquery
 
 import (
+	"encoding/xml"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -61,7 +62,10 @@ func TestParseAddressBookXML(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, doc.ChildNodes(), 6)
 
-	xml := doc.OutputXML()
-	expected := `<?xml version="1.0"?><people><name>John Doe</name><id>101</id><email>john@example.com</email><age>42</age></people><people><name>Jane Doe</name><id>102</id><age>40</age></people><people><name>Jack Doe</name><id>201</id><email>jack@example.com</email><age>12</age><phones><number>555-555-5555</number><type>2</type></phones></people><people><name>Jack Buck</name><id>301</id><email>buck@example.com</email><age>19</age><phones><number>555-555-0000</number><type>1</type></phones><phones><number>555-555-0001</number></phones><phones><number>555-555-0002</number><type>2</type></phones></people><people><name>Janet Doe</name><id>1001</id><email>janet@example.com</email><age>16</age><phones><number>555-777-0000</number></phones><phones><number>555-777-0001</number><type>1</type></phones></people><tags><element>home</element><element>private</element><element>friends</element></tags>`
-	require.Equal(t, expected, xml)
+	expectedXML := `<?xml version="1.0"?><people><name>John Doe</name><id>101</id><email>john@example.com</email><age>42</age></people><people><name>Jane Doe</name><id>102</id><age>40</age></people><people><name>Jack Doe</name><id>201</id><email>jack@example.com</email><age>12</age><phones><number>555-555-5555</number><type>2</type></phones></people><people><name>Jack Buck</name><id>301</id><email>buck@example.com</email><age>19</age><phones><number>555-555-0000</number><type>1</type></phones><phones><number>555-555-0001</number></phones><phones><number>555-555-0002</number><type>2</type></phones></people><people><name>Janet Doe</name><id>1001</id><email>janet@example.com</email><age>16</age><phones><number>555-777-0000</number></phones><phones><number>555-777-0001</number><type>1</type></phones></people><tags><element>home</element><element>private</element><element>friends</element></tags>`
+
+	var actual, expected addressbook.AddressBook
+	require.NoError(t, xml.Unmarshal([]byte(expectedXML), &expected))
+	require.NoError(t, xml.Unmarshal([]byte(doc.OutputXML()), &actual))
+	require.EqualValues(t, expected, actual)
 }

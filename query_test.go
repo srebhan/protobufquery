@@ -42,41 +42,51 @@ func TestNavigator(t *testing.T) {
 		t.Fatal("node type is not RootNode")
 	}
 
-	expectedPeople := []keyValueList{
-		[]keyValue{
-			{key: "name", value: "John Doe"},
-			{key: "id", value: "101"},
-			{key: "email", value: "john@example.com"},
+	expectedPeoples := []map[string]interface{}{
+		{
+			"name":  "John Doe",
+			"id":    "101",
+			"email": "john@example.com",
+			"age":   "42",
 		},
-		[]keyValue{
-			{key: "name", value: "Jane Doe"},
-			{key: "id", value: "102"},
-			{key: "email", value: "", missing: true},
+		{
+			"name": "Jane Doe",
+			"id":   "102",
+			"age":  "40",
 		},
 	}
+
+	// Find the people node
 	require.True(t, nav.MoveToChild())
-	for _, keyvalues := range expectedPeople {
+	for nav.Current().Name != "people" && nav.MoveToNext() {
+		// nothing to do
+	}
+
+	// Check the nodes against the expected values and check if we did not
+	// miss any field
+	for _, expected := range expectedPeoples {
 		require.Equal(t, "people", nav.Current().Name)
 		require.True(t, nav.MoveToChild())
-		for i, v := range keyvalues {
-			if !v.missing {
-				if i > 0 {
-					require.True(t, nav.MoveToNext())
-				}
-				require.Equal(t, v.key, nav.Current().Name)
-				require.Equal(t, v.value, nav.Value())
-			} else {
-				if i > 0 {
-					if !nav.MoveToNext() {
-						// There is no other node so we passed the test
-						continue
-					}
-				}
-				require.NotEqual(t, v.key, nav.Current().Name)
-				if i > 0 {
-					require.True(t, nav.MoveToPrevious())
-				}
+		seen := make(map[string]bool, len(expected))
+		for {
+			// Compare the node value
+			key := nav.Current().Name
+			require.NotEmpty(t, key)
+			expectedValue, found := expected[key]
+			require.Truef(t, found, "key %q not found", key)
+			require.Equal(t, expectedValue, nav.Value())
+
+			// Remember which fields we saw for later reverse check
+			seen[key] = true
+
+			if !nav.MoveToNext() {
+				break
 			}
+		}
+
+		// Check if we miss an expected field
+		for key := range expected {
+			require.Truef(t, seen[key], "key %q not found in nodes", key)
 		}
 		require.True(t, nav.MoveToParent())
 		require.True(t, nav.MoveToNext())
