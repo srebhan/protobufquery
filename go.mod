@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/antchfx/xpath v1.2.4
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
-	github.com/golang/protobuf v1.5.0
+	github.com/golang/protobuf v1.5.3
 	github.com/stretchr/testify v1.7.0
 	google.golang.org/protobuf v1.31.0
 )
