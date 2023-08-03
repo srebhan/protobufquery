@@ -67,5 +67,6 @@ func TestParseAddressBookXML(t *testing.T) {
 	var actual, expected addressbook.AddressBook
 	require.NoError(t, xml.Unmarshal([]byte(expectedXML), &expected))
 	require.NoError(t, xml.Unmarshal([]byte(doc.OutputXML()), &actual))
+	//nolint:govet // Copies lock but that's the simplest way to test
 	require.EqualValues(t, expected, actual)
 }

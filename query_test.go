@@ -9,25 +9,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type keyValue struct {
-	key     string
-	value   string
-	missing bool
-}
-
-type keyValueList []keyValue
-
 func BenchmarkSelectorCache(b *testing.B) {
 	DisableSelectorCache = false
 	for i := 0; i < b.N; i++ {
-		getQuery("/AAA/BBB/DDD/CCC/EEE/ancestor::*")
+		_, _ = getQuery("/AAA/BBB/DDD/CCC/EEE/ancestor::*")
 	}
 }
 
 func BenchmarkDisableSelectorCache(b *testing.B) {
 	DisableSelectorCache = true
 	for i := 0; i < b.N; i++ {
-		getQuery("/AAA/BBB/DDD/CCC/EEE/ancestor::*")
+		_, _ = getQuery("/AAA/BBB/DDD/CCC/EEE/ancestor::*")
 	}
 }
 
@@ -38,9 +30,7 @@ func TestNavigator(t *testing.T) {
 
 	nav := CreateXPathNavigator(doc)
 	nav.MoveToRoot()
-	if nav.NodeType() != xpath.RootNode {
-		t.Fatal("node type is not RootNode")
-	}
+	require.Equal(t, xpath.RootNode, nav.NodeType(), "node type is not RootNode")
 
 	expectedPeoples := []map[string]interface{}{
 		{
