@@ -138,9 +138,9 @@ func visit(parent *Node, msg protoreflect.Message, level int) {
 func traverse(parent *Node, field protoreflect.FieldDescriptor, value protoreflect.Value, level int) {
 	node := &Node{Type: ElementNode, Name: string(field.Name()), level: level}
 	nodeChildren := 0
-	if field.IsList() {
+	switch {
+	case field.IsList():
 		l := value.List()
-
 		for i := 0; i < l.Len(); i++ {
 			subNode := handleValue(field.Kind(), l.Get(i), level+1)
 			if subNode.Type == ElementNode {
@@ -156,7 +156,25 @@ func traverse(parent *Node, field protoreflect.FieldDescriptor, value protorefle
 				nodeChildren++
 			}
 		}
-	} else {
+	case field.IsMap():
+		key := field.MapKey()
+		value.Map().Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
+			subNode := handleValue(key.Kind(), v, level+1)
+			if subNode.Type == ElementNode {
+				// Add element nodes directly to the parent
+				subNode.Name = k.String()
+				addNode(parent, subNode)
+			} else {
+				// Add basic nodes to the local collection node
+				elementNode := &Node{Type: ElementNode, Name: k.String(), level: level + 1}
+				subNode.level += 2
+				addNode(elementNode, subNode)
+				addNode(node, elementNode)
+				nodeChildren++
+			}
+			return true
+		})
+	default:
 		subNode := handleValue(field.Kind(), value, level+1)
 		if subNode.Type == ElementNode {
 			// Add element nodes directly to the parent
