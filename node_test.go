@@ -3,8 +3,9 @@ package protobufquery
 import (
 	"testing"
 
-	"github.com/doclambda/protobufquery/testcases/addressbook"
 	"github.com/stretchr/testify/require"
+
+	"github.com/srebhan/protobufquery/testcases/addressbook"
 )
 
 var addressbookSample = &addressbook.AddressBook{

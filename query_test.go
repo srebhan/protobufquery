@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/antchfx/xpath"
-
 	"github.com/stretchr/testify/require"
 )
 
