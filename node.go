@@ -31,6 +31,18 @@ type Node struct {
 	level int
 }
 
+// Options controls the behavior of protobuf parsing
+type Options struct {
+	// PopulateDefaults determines whether to populate default values for proto3 messages
+	PopulateDefaults bool
+}
+
+// DefaultOptions provides sensible defaults for parsing
+// PopulateDefaults is false by default to maintain backward compatibility
+var DefaultOptions = Options{
+	PopulateDefaults: false, // Preserve existing behavior by default
+}
+
 // ChildNodes gets all child nodes of the node.
 func (n *Node) ChildNodes() []*Node {
 	var a []*Node
@@ -121,28 +133,49 @@ func (n *Node) Value() interface{} {
 	return result
 }
 
-// Parse ProtocolBuffer message.
+// Parse ProtocolBuffer message with default options.
 func Parse(msg protoreflect.Message) (*Node, error) {
+	return ParseWithOptions(msg, DefaultOptions)
+}
+
+// ParseWithOptions parses a ProtocolBuffer message with custom options.
+func ParseWithOptions(msg protoreflect.Message, opts Options) (*Node, error) {
 	doc := &Node{Type: DocumentNode}
-	visit(doc, msg, 1)
+	visit(doc, msg, 1, opts)
 	return doc, nil
 }
 
-func visit(parent *Node, msg protoreflect.Message, level int) {
-	msg.Range(func(f protoreflect.FieldDescriptor, v protoreflect.Value) bool {
-		traverse(parent, f, v, level)
-		return true
-	})
+func visit(parent *Node, msg protoreflect.Message, level int, opts Options) {
+	desc := msg.Descriptor()
+	fields := desc.Fields()
+
+	// Process all fields in the message descriptor, not just present ones
+	for i := 0; i < fields.Len(); i++ {
+		field := fields.Get(i)
+
+		if msg.Has(field) {
+			// Field is present, use its actual value
+			value := msg.Get(field)
+			traverse(parent, field, value, level, opts)
+		} else if opts.PopulateDefaults && desc.Syntax() == protoreflect.Proto3 {
+			// Field is not present in proto3, use default value
+			defaultValue := getDefaultValue(field)
+			if defaultValue.IsValid() {
+				traverse(parent, field, defaultValue, level, opts)
+			}
+		}
+		// For proto2 or when PopulateDefaults is false, skip unset fields (existing behavior)
+	}
 }
 
-func traverse(parent *Node, field protoreflect.FieldDescriptor, value protoreflect.Value, level int) {
+func traverse(parent *Node, field protoreflect.FieldDescriptor, value protoreflect.Value, level int, opts Options) {
 	node := &Node{Type: ElementNode, Name: string(field.Name()), level: level}
 	nodeChildren := 0
 	switch {
 	case field.IsList():
 		l := value.List()
 		for i := 0; i < l.Len(); i++ {
-			subNode := handleValue(field.Kind(), l.Get(i), level+1)
+			subNode := handleValue(field.Kind(), l.Get(i), level+1, opts)
 			if subNode.Type == ElementNode {
 				// Add element nodes directly to the parent
 				subNode.Name = node.Name
@@ -159,7 +192,7 @@ func traverse(parent *Node, field protoreflect.FieldDescriptor, value protorefle
 	case field.IsMap():
 		key := field.MapKey()
 		value.Map().Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
-			subNode := handleValue(key.Kind(), v, level+1)
+			subNode := handleValue(key.Kind(), v, level+1, opts)
 			if subNode.Type == ElementNode {
 				// Add element nodes directly to the parent
 				subNode.Name = k.String()
@@ -175,7 +208,7 @@ func traverse(parent *Node, field protoreflect.FieldDescriptor, value protorefle
 			return true
 		})
 	default:
-		subNode := handleValue(field.Kind(), value, level+1)
+		subNode := handleValue(field.Kind(), value, level+1, opts)
 		if subNode.Type == ElementNode {
 			// Add element nodes directly to the parent
 			subNode.Name = node.Name
@@ -193,13 +226,13 @@ func traverse(parent *Node, field protoreflect.FieldDescriptor, value protorefle
 	}
 }
 
-func handleValue(kind protoreflect.Kind, value protoreflect.Value, level int) *Node {
+func handleValue(kind protoreflect.Kind, value protoreflect.Value, level int, opts Options) *Node {
 	var node *Node
 
 	switch kind {
 	case protoreflect.MessageKind:
 		node = &Node{Type: ElementNode, level: level}
-		visit(node, value.Message(), level+1)
+		visit(node, value.Message(), level+1, opts)
 	default:
 		node = &Node{Type: TextNode, Data: &value, level: level}
 	}
@@ -226,4 +259,46 @@ func addNode(top, n *Node) {
 			top.LastChild = n
 		}
 	}
+}
+
+// getDefaultValue returns the appropriate default value for a field
+func getDefaultValue(field protoreflect.FieldDescriptor) protoreflect.Value {
+	// Skip lists and maps - they're empty by default and don't need explicit defaults
+	if field.IsList() || field.IsMap() {
+		return protoreflect.Value{}
+	}
+
+	switch field.Kind() {
+	case protoreflect.BoolKind:
+		return protoreflect.ValueOfBool(false)
+	case protoreflect.EnumKind:
+		enumDesc := field.Enum()
+		if enumDesc.Values().Len() > 0 {
+			return protoreflect.ValueOfEnum(enumDesc.Values().Get(0).Number())
+		}
+	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind:
+		return protoreflect.ValueOfInt32(0)
+	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
+		return protoreflect.ValueOfInt64(0)
+	case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
+		return protoreflect.ValueOfUint32(0)
+	case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
+		return protoreflect.ValueOfUint64(0)
+	case protoreflect.FloatKind:
+		return protoreflect.ValueOfFloat32(0.0)
+	case protoreflect.DoubleKind:
+		return protoreflect.ValueOfFloat64(0.0)
+	case protoreflect.StringKind:
+		return protoreflect.ValueOfString("")
+	case protoreflect.BytesKind:
+		return protoreflect.ValueOfBytes([]byte{})
+	case protoreflect.MessageKind, protoreflect.GroupKind:
+		// For nested messages, we don't populate defaults automatically
+		// to avoid infinite recursion and unnecessary complexity.
+		// If users need nested message defaults, they can call ParseWithOptions
+		// on the nested message separately.
+		return protoreflect.Value{}
+	}
+
+	return protoreflect.Value{}
 }
